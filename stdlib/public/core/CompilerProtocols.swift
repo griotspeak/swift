@@ -256,6 +256,12 @@ public protocol CaseIterable {
   static var allCases: AllCases { get }
 }
 
+public protocol DiscriminatedUnion {
+  associatedtype Discriminant: Equatable
+  
+  var discriminant: Discriminant { get }
+}
+
 /// A type that can be initialized using the nil literal, `nil`.
 ///
 /// `nil` has a specific meaning in Swift---the absence of a value. Only the

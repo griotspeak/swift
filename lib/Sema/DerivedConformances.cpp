@@ -89,6 +89,8 @@ bool DerivedConformance::derivesProtocolConformance(DeclContext *DC,
       case KnownProtocolKind::CaseIterable:
         return !enumDecl->hasPotentiallyUnavailableCaseValue()
             && enumDecl->hasOnlyCasesWithoutAssociatedValues();
+      case KnownProtocolKind::DiscriminatedUnion:
+        return !enumDecl->hasPotentiallyUnavailableCaseValue();
 
         // @objc enums can explicitly derive their _BridgedNSError conformance.
       case KnownProtocolKind::BridgedNSError:
@@ -204,6 +206,10 @@ ValueDecl *DerivedConformance::getDerivableRequirement(NominalTypeDecl *nominal,
     // CaseIterable.allValues
     if (name.isSimpleName(ctx.Id_allCases))
       return getRequirement(KnownProtocolKind::CaseIterable);
+    
+    // DiscriminatedUnion.discriminant
+    if (name.isSimpleName(ctx.Id_discriminant))
+      return getRequirement(KnownProtocolKind::DiscriminatedUnion);
 
     // _BridgedNSError._nsErrorDomain
     if (name.isSimpleName(ctx.Id_nsErrorDomain))
@@ -276,6 +282,10 @@ ValueDecl *DerivedConformance::getDerivableRequirement(NominalTypeDecl *nominal,
     // CaseIterable.AllCases
     if (name.isSimpleName(ctx.Id_AllCases))
       return getRequirement(KnownProtocolKind::CaseIterable);
+    
+    // DiscriminatedUnion.DiscriminatedUnion
+    if (name.isSimpleName(ctx.Id_Discriminant))
+      return getRequirement(KnownProtocolKind::DiscriminatedUnion);
 
     return nullptr;
   }

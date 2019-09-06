@@ -108,6 +108,9 @@ public:
   ///
   /// \returns the derived member, which will also be added to the type.
   Type deriveCaseIterable(AssociatedTypeDecl *assocType);
+  
+  ValueDecl *deriveDiscriminatedUnion(ValueDecl *requirement);
+  Type deriveDiscriminatedUnion(AssociatedTypeDecl *assocType);
 
   /// Determine if a RawRepresentable requirement can be derived for a type.
   ///

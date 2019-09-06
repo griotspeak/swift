@@ -5514,6 +5514,9 @@ ValueDecl *TypeChecker::deriveProtocolRequirement(DeclContext *DC,
 
   case KnownProtocolKind::CaseIterable:
     return derived.deriveCaseIterable(Requirement);
+    
+  case KnownProtocolKind::DiscriminatedUnion:
+    return derived.deriveDiscriminatedUnion(Requirement);
 
   case KnownProtocolKind::Comparable:
     return derived.deriveComparable(Requirement);
@@ -5560,6 +5563,8 @@ Type TypeChecker::deriveTypeWitness(DeclContext *DC,
     return derived.deriveRawRepresentable(AssocType);
   case KnownProtocolKind::CaseIterable:
     return derived.deriveCaseIterable(AssocType);
+    case KnownProtocolKind::DiscriminatedUnion:
+      return derived.deriveDiscriminatedUnion(AssocType);
   default:
     return nullptr;
   }
