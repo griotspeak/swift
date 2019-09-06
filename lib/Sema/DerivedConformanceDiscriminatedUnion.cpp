@@ -9,7 +9,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-//  This file implements implicit derivation of the CaseIterable protocol.
+//  This file implements implicit derivation of the DiscriminatedUnion protocol.
 //
 //===----------------------------------------------------------------------===//
 
@@ -37,9 +37,9 @@ static bool canDeriveConformance(NominalTypeDecl *type) {
   return !enumDecl->hasPotentiallyUnavailableCaseValue(); // FIXME: Other conditions?
 }
 
-/// Derive the implementation of allCases for a "simple" no-payload enum.
+/// Derive the implementation of discriminant for a "simple" no-payload enum.
 static std::pair<BraceStmt *, bool>
-deriveCaseIterable_enum_getter(AbstractFunctionDecl *funcDecl, void *) {
+deriveDiscriminatedUnion_enum_getter(AbstractFunctionDecl *funcDecl, void *) {
   // Copy from rawValue derived conformance
   auto *parentDC = funcDecl->getDeclContext();
   auto *parentEnum = parentDC->getSelfEnumDecl();
@@ -61,7 +61,7 @@ deriveCaseIterable_enum_getter(AbstractFunctionDecl *funcDecl, void *) {
   return { body, /*isTypeChecked=*/false };
 }
 
-static ArraySliceType *computeAllCasesType(NominalTypeDecl *enumDecl) {
+static ArraySliceType *computeDiscriminantType(NominalTypeDecl *enumDecl) {
   auto enumType = enumDecl->getDeclaredInterfaceType();
   if (!enumType || enumType->hasError())
     return nullptr;
@@ -69,12 +69,12 @@ static ArraySliceType *computeAllCasesType(NominalTypeDecl *enumDecl) {
   return ArraySliceType::get(enumType);
 }
 
-static Type deriveCaseIterable_AllCases(DerivedConformance &derived) {
-  // enum SomeEnum : CaseIterable {
+static Type deriveDiscriminatedUnion_Discriminant(DerivedConformance &derived) {
+  // enum SomeEnum : DiscriminatedUnion {
   //   @derived
-  //   typealias AllCases = [SomeEnum]
+  //   enum Discriminant {}
   // }
-  auto *rawInterfaceType = computeAllCasesType(cast<EnumDecl>(derived.Nominal));
+  auto *rawInterfaceType = computeDiscriminantType(cast<EnumDecl>(derived.Nominal));
   return derived.getConformanceContext()->mapTypeIntoContext(rawInterfaceType);
 }
 
@@ -83,7 +83,7 @@ ValueDecl *DerivedConformance::deriveDiscriminatedUnion(ValueDecl *requirement) 
   if (checkAndDiagnoseDisallowedContext(requirement))
     return nullptr;
 
-  // Check that we can actually derive CaseIterable for this type.
+  // Check that we can actually derive DiscriminatedUnion for this type.
   if (!canDeriveConformance(Nominal))
     return nullptr;
 
@@ -97,7 +97,7 @@ ValueDecl *DerivedConformance::deriveDiscriminatedUnion(ValueDecl *requirement) 
 
 
   // Define the property.
-  auto *returnTy = computeAllCasesType(Nominal);
+  auto *returnTy = computeDiscriminantType(Nominal);
 
   VarDecl *propDecl;
   PatternBindingDecl *pbDecl;
@@ -108,7 +108,7 @@ ValueDecl *DerivedConformance::deriveDiscriminatedUnion(ValueDecl *requirement) 
   // Define the getter.
   auto *getterDecl = addGetterToReadOnlyDerivedProperty(propDecl, returnTy);
 
-  getterDecl->setBodySynthesizer(&deriveCaseIterable_enum_getter);
+  getterDecl->setBodySynthesizer(&deriveDiscriminatedUnion_enum_getter);
 
   addMembersToConformanceContext({propDecl, pbDecl});
 
@@ -121,7 +121,7 @@ Type DerivedConformance::deriveDiscriminatedUnion(AssociatedTypeDecl *assocType)
     return nullptr;
 
   llvm::errs() << "Place 2\n";
-  // Check that we can actually derive CaseIterable for this type.
+  // Check that we can actually derive DiscriminatedUnion for this type.
   if (!canDeriveConformance(Nominal))
     return nullptr;
   
@@ -129,7 +129,7 @@ Type DerivedConformance::deriveDiscriminatedUnion(AssociatedTypeDecl *assocType)
 
   if (assocType->getName() == TC.Context.Id_Discriminant) {
     llvm::errs() << "Place 4\n";
-    auto back = deriveCaseIterable_AllCases(*this);
+    auto back = deriveDiscriminatedUnion_Discriminant(*this);
     back.dump();
     return back;
   }
