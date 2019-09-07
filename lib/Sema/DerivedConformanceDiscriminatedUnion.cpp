@@ -61,12 +61,87 @@ deriveDiscriminatedUnion_enum_getter(AbstractFunctionDecl *funcDecl, void *) {
   return { body, /*isTypeChecked=*/false };
 }
 
-static ArraySliceType *computeDiscriminantType(NominalTypeDecl *enumDecl) {
+static Type computeDiscriminantType(NominalTypeDecl *enumDecl) {
   auto enumType = enumDecl->getDeclaredInterfaceType();
   if (!enumType || enumType->hasError())
     return nullptr;
 
-  return ArraySliceType::get(enumType);
+  return enumType;
+}
+
+/// Synthesizes a new \c CodingKeys enum based on the {En,De}codable members of
+/// the given type (\c nullptr if unable to synthesize).
+///
+/// If able to synthesize the enum, adds it directly to \c derived.Nominal.
+static EnumDecl *synthesizeDiscriminantEnum(DerivedConformance &derived) {
+  auto &tc = derived.TC;
+  auto &C = tc.Context;
+  // Create CodingKeys in the parent type always, because both
+  // Encodable and Decodable might want to use it, and they may have
+  // different conditional bounds. CodingKeys is simple and can't
+  // depend on those bounds.
+  auto target = derived.Nominal;
+
+  // We want to look through all the var declarations of this type to create
+  // enum cases based on those var names.
+  auto *discriminatedUnionProto = C.getProtocol(KnownProtocolKind::Hashable);
+  auto *discriminatedUnionType = discriminatedUnionProto->getDeclaredType();
+  TypeLoc protoTypeLoc[1] = {TypeLoc::withoutLoc(discriminatedUnionType)};
+  MutableArrayRef<TypeLoc> inherited = C.AllocateCopy(protoTypeLoc);
+
+  auto *enumDecl = new (C) EnumDecl(SourceLoc(), C.Id_Discriminant, SourceLoc(),
+                                    inherited, nullptr, target);
+  enumDecl->setImplicit();
+  enumDecl->setAccess(AccessLevel::Public);
+
+  // // Each of these vars needs a case in the enum. For each var decl, if the type
+  // // conforms to {En,De}codable, add it to the enum.
+  // bool allConform = true;
+  // for (auto *varDecl : target->getStoredProperties()) {
+  //   if (!varDecl->isUserAccessible())
+  //     continue;
+  //
+  //   // Despite creating the enum in the context of the type, we're
+  //   // concurrently checking the variables for the current protocol
+  //   // conformance being synthesized, for which we use the conformance
+  //   // context, not the type.
+  //   auto conformance = varConformsToCodable(tc, derived.getConformanceContext(),
+  //                                           varDecl, derived.Protocol);
+  //   switch (conformance) {
+  //     case Conforms:
+  //     {
+  //       auto *elt = new (C) EnumElementDecl(SourceLoc(),
+  //                                           getVarNameForCoding(varDecl),
+  //                                           nullptr, SourceLoc(), nullptr,
+  //                                           enumDecl);
+  //       elt->setImplicit();
+  //       enumDecl->addMember(elt);
+  //       break;
+  //     }
+  //
+  //     case DoesNotConform:
+  //       tc.diagnose(varDecl->getLoc(),
+  //                   diag::codable_non_conforming_property_here,
+  //                   derived.getProtocolType(), varDecl->getType());
+  //       LLVM_FALLTHROUGH;
+  //
+  //     case TypeNotValidated:
+  //       // We don't produce a diagnostic for a type which failed to validate.
+  //       // This will produce a diagnostic elsewhere anyway.
+  //       allConform = false;
+  //       continue;
+  //   }
+  // }
+  //
+  // if (!allConform)
+  //   return nullptr;
+
+  // Forcibly derive conformance to CodingKey.
+  tc.checkConformancesInContext(enumDecl, enumDecl);
+
+  // Add to the type.
+  target->addMember(enumDecl);
+  return enumDecl;
 }
 
 static Type deriveDiscriminatedUnion_Discriminant(DerivedConformance &derived) {
@@ -74,7 +149,9 @@ static Type deriveDiscriminatedUnion_Discriminant(DerivedConformance &derived) {
   //   @derived
   //   enum Discriminant {}
   // }
-  auto *rawInterfaceType = computeDiscriminantType(cast<EnumDecl>(derived.Nominal));
+  auto *discriminantEnum = synthesizeDiscriminantEnum(derived);
+    
+  auto rawInterfaceType = computeDiscriminantType(discriminantEnum);
   return derived.getConformanceContext()->mapTypeIntoContext(rawInterfaceType);
 }
 
@@ -97,7 +174,7 @@ ValueDecl *DerivedConformance::deriveDiscriminatedUnion(ValueDecl *requirement) 
 
 
   // Define the property.
-  auto *returnTy = computeDiscriminantType(Nominal);
+  auto returnTy = computeDiscriminantType(Nominal);
 
   VarDecl *propDecl;
   PatternBindingDecl *pbDecl;
